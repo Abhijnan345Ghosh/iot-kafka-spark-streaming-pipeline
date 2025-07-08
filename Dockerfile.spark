@@ -1,0 +1,17 @@
+# Replace 'bitnami/spark:3.4.2' with the exact, found tag from Docker Hub
+FROM bitnami/spark:3.5
+
+USER root
+
+# Explicitly set HOME for the root user. This is crucial for Ivy.
+ENV HOME /root
+
+# Fix "I have no name!" issue and create home directory for sparkuser
+RUN echo "sparkuser:x:1001:1001:Spark User:/home/sparkuser:/bin/bash" >> /etc/passwd
+RUN mkdir -p /home/sparkuser && chown -R 1001:1001 /home/sparkuser
+
+# Install Python deps
+RUN pip install pandas psycopg2-binary
+
+# Set the default user to sparkuser (recommended for running Spark jobs)
+USER 1001

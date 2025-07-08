@@ -1,0 +1,22 @@
+# Ignore Python cache files
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Ignore logs
+*.log
+
+# OS metadata
+.DS_Store
+
+# IDE/editor config
+.vscode/
+.idea/
+
+# Environment files
+.env
+venv/
+
+# Ignore backup or temp files
+*~
+*.bak

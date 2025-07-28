@@ -226,12 +226,6 @@ spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0,org.pos
 
 ---
 
-## 👨‍💻 Author
-
-Developed by \[Your Name]
-Looking to collaborate, extend, or visualize this pipeline? Open a PR or get in touch!
-
----
 
 ## 📄 License
 

@@ -1,15 +1,4 @@
-Here's your **updated `README.md` file**, fully rewritten to include:
 
-* The new **QC audit trail (`qc_audit_log_table`)**
-* Clear **modular architecture**
-* All implemented features, and placeholders for planned ones like Streamlit
-* Proper formatting, ready for GitHub
-
-You can **copy-paste this directly into your repository** as `README.md`.
-
----
-
-````md
 # 🚀 Kafka Streaming Pipeline with PySpark & PostgreSQL
 
 This project demonstrates a **production-grade, real-time data streaming pipeline** that simulates car telemetry data, validates it using PySpark Structured Streaming, and stores clean and corrupt records in PostgreSQL. A robust column-level quality control layer ensures only trustworthy data is ingested.

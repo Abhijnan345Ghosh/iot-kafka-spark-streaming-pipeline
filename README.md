@@ -1,27 +1,71 @@
+Here's your **updated `README.md` file**, fully rewritten to include:
 
+* The new **QC audit trail (`qc_audit_log_table`)**
+* Clear **modular architecture**
+* All implemented features, and placeholders for planned ones like Streamlit
+* Proper formatting, ready for GitHub
+
+You can **copy-paste this directly into your repository** as `README.md`.
+
+---
+
+````md
 # 🚀 Kafka Streaming Pipeline with PySpark & PostgreSQL
 
-This project implements a real-time, production-grade data streaming pipeline that simulates car telemetry data using a Kafka producer, performs schema validation and quality control using Spark Structured Streaming, and stores results into PostgreSQL.
+This project demonstrates a **production-grade, real-time data streaming pipeline** that simulates car telemetry data, validates it using PySpark Structured Streaming, and stores clean and corrupt records in PostgreSQL. A robust column-level quality control layer ensures only trustworthy data is ingested.
 
 ---
 
 ## 📚 Use Case
 
-Millions of telemetry or log events are generated every second in real-world systems like ride-sharing, IoT, logistics, and vehicle monitoring. This project demonstrates a high-throughput ingestion and processing pipeline that ensures data correctness via schema and QC checks.
+This project emulates a real-world IoT telemetry pipeline, common in ride-sharing, logistics, or automotive systems. Events like fuel level, speed, GPS, and engine temperature are streamed and validated in real-time — simulating millions of rows per day.
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Architecture Overview
 
 ```text
- Kafka Producer (Python) --> Kafka Topic (car_telemetry) --> Spark Structured Streaming
-                                                             |
-                                                 ┌───────────┴───────────┐
-                                                 |                       |
-                                         Clean Records               Corrupt Records
-                                       → PostgreSQL                  → PostgreSQL
-                                       (device_data)                 (corrupt_records)
-```
+                       +---------------------+
+                       |  External API Queue |
+                       +----------+----------+
+                                  |
+                         Retry if failure
+                                  |
+                         ┌────────▼─────────┐
+                         |   Kafka Producer  |
+                         └────────┬─────────┘
+                                  |
+                        Sends JSON to Kafka Topic (raw_telemetry)
+                                  |
+                                  ▼
+                         ┌────────────────────┐
+                         │  Spark Structured  │
+                         │    Streaming Job   │
+                         └────────┬───────────┘
+                                  |
+                       +----------+----------+
+                       |                     |
+               ┌───────▼───────┐     ┌───────▼──────┐
+               │ Schema Valid? │     │ Invalid?     │
+               └───────┬───────┘     └───────┬──────┘
+                       |                    |
+                       ▼                    ▼
+             +-----------------+     +--------------------+
+             | Post-Schema QC  |     | corrupt_records DB |
+             | on valid rows   |     +--------------------+
+             +--------+--------+
+                      |
+                      ▼
+        ┌─────────────────────────────┐
+        │ Column-level QC (cell wise) │
+        └───────┬────────────┬────────┬─────────────┐
+                |            |        |             |
+                ▼            ▼        ▼             ▼
+     +----------------+   +------------------+   +---------------------+
+     | device_data DB |   | qc_failed_table  |   | qc_audit_log_table  |
+     | qc_status=OK   |   | qc_status=FAIL   |   | cell-level QC log   |
+     +----------------+   +------------------+   +---------------------+
+````
 
 ---
 
@@ -31,18 +75,19 @@ Millions of telemetry or log events are generated every second in real-world sys
 kafka-streaming-pipeline/
 │
 ├── docker-compose.yaml         # Launches Kafka, Zookeeper, Postgres
-├── Dockerfile.spark            # Spark Docker image
-├── db_schema.sql               # SQL file to create Postgres tables
+├── Dockerfile.spark            # Spark image with dependencies
+├── db_schema.sql               # SQL file to create PostgreSQL tables
 │
-├── kafka_producer.py           # Kafka producer to simulate telemetry data
-├── logger_success.py           # Logs successful producer messages
-├── logger_failure.py           # Logs failed producer messages
+├── kafka_producer.py           # Simulates car telemetry and sends to Kafka
+├── logger_success.py           # Logs successful producer sends
+├── logger_failure.py           # Logs failures + retry queue logic
 │
 ├── producer_success.log        # Log of success messages
-├── producer_failure.log        # Log of failure messages
+├── producer_failure.log        # Log of retry/failure messages
 │
 └── jobs/
-    ├── consumer_grp.py         # PySpark consumer for schema & QC validation
+    ├── consumer_grp.py         # PySpark consumer with schema & QC logic
+    ├── qc_checks.py            # Contains column-level validation functions
     ├── spark_log.log           # Runtime logs
 ```
 
@@ -50,89 +95,116 @@ kafka-streaming-pipeline/
 
 ## 🔧 Tech Stack
 
-| Component         | Technology        |
-|------------------|-------------------|
-| Message Broker    | Kafka + Zookeeper |
-| Stream Processor  | PySpark (Structured Streaming) |
-| Storage           | PostgreSQL        |
-| Containerization  | Docker + Compose  |
-| Language          | Python 3.9+       |
+| Component        | Technology                     |
+| ---------------- | ------------------------------ |
+| Message Broker   | Kafka + Zookeeper              |
+| Stream Processor | PySpark (Structured Streaming) |
+| Storage          | PostgreSQL                     |
+| Retry Mechanism  | Custom API Queue               |
+| Containerization | Docker + Compose               |
+| Language         | Python 3.9+                    |
 
 ---
 
-## 📦 PostgreSQL Table Design
+## 🗃️ PostgreSQL Table Design
 
-### ✅ Clean Data Table: `device_data`
+### ✅ Clean Records Table: `device_data`
 
-| Column               | Type        | Description                       |
-|----------------------|-------------|-----------------------------------|
-| trip_id              | STRING      | Unique trip identifier            |
-| car_id               | STRING      | Car identifier                    |
-| latitude             | DOUBLE      | Latitude at event time            |
-| longitude            | DOUBLE      | Longitude at event time           |
-| event_timestamp      | TIMESTAMP   | Original event timestamp          |
-| speed_kmph           | DOUBLE      | Car speed                         |
-| fuel_level           | DOUBLE      | Fuel level                        |
-| engine_temp_c        | DOUBLE      | Engine temperature                |
-| trip_start_time      | TIMESTAMP   | Trip start time                   |
-| trip_start_latitude  | DOUBLE      | Latitude at trip start            |
-| trip_start_longitude | DOUBLE      | Longitude at trip start           |
-| trip_start_date      | DATE        | Partition key                     |
-| message_key          | STRING      | Kafka message key                 |
-| kafka_partition      | INT         | Kafka partition                   |
-| kafka_offset         | BIGINT      | Kafka offset                      |
-| load_timestamp       | TIMESTAMP   | Data ingestion time               |
+| Column                 | Type      | Description              |
+| ---------------------- | --------- | ------------------------ |
+| trip\_id               | STRING    | Unique trip identifier   |
+| car\_id                | STRING    | Car identifier           |
+| latitude               | DOUBLE    | Latitude at event time   |
+| longitude              | DOUBLE    | Longitude at event time  |
+| event\_timestamp       | TIMESTAMP | Original event timestamp |
+| speed\_kmph            | DOUBLE    | Car speed                |
+| fuel\_level            | DOUBLE    | Fuel level               |
+| engine\_temp\_c        | DOUBLE    | Engine temperature       |
+| trip\_start\_time      | TIMESTAMP | Trip start time          |
+| trip\_start\_latitude  | DOUBLE    | Latitude at trip start   |
+| trip\_start\_longitude | DOUBLE    | Longitude at trip start  |
+| trip\_start\_date      | DATE      | Partition key            |
+| message\_key           | STRING    | Kafka message key        |
+| kafka\_partition       | INT       | Kafka partition          |
+| kafka\_offset          | BIGINT    | Kafka offset             |
+| qc\_status             | STRING    | 'success'                |
+| load\_timestamp        | TIMESTAMP | Ingestion time           |
 
 ---
 
 ### ❌ Corrupt Records Table: `corrupt_records`
 
-| Column          | Type        | Description                       |
-|------------------|-------------|-----------------------------------|
-| message_key     | STRING      | Kafka message key                 |
-| kafka_partition | INT         | Kafka partition                   |
-| kafka_offset    | BIGINT      | Kafka offset                      |
-| value_str       | STRING      | Raw JSON value                    |
-| error_reason    | STRING      | Reason for failure                |
-| load_timestamp  | TIMESTAMP   | Ingestion timestamp               |
+| Column           | Type      | Description               |
+| ---------------- | --------- | ------------------------- |
+| message\_key     | STRING    | Kafka message key         |
+| kafka\_partition | INT       | Kafka partition           |
+| kafka\_offset    | BIGINT    | Kafka offset              |
+| value\_str       | STRING    | Raw JSON value            |
+| error\_reason    | STRING    | Reason for schema failure |
+| load\_timestamp  | TIMESTAMP | Ingestion time            |
 
 ---
 
-### 📋 Error Log Table: `consumer_error_log`
+### ❌ Failed QC Table: `qc_failed_table`
 
-| Column         | Type        | Description                       |
-|----------------|-------------|-----------------------------------|
-| error_message  | STRING      | Full error traceback              |
-| log_time       | TIMESTAMP   | Error occurrence time             |
-| target_table   | STRING      | Table attempted to write          |
-| batch_id       | STRING      | Spark batch ID                    |
+| Column               | Type          | Description                             |
+| -------------------- | ------------- | --------------------------------------- |
+| All input columns... | As per schema |                                         |
+| qc\_status           | STRING        | 'fail'                                  |
+| qc\_summary          | STRING        | Brief reason (e.g., "fuel\_level null") |
+| load\_timestamp      | TIMESTAMP     | Ingestion time                          |
+
+---
+
+### 📋 QC Audit Table: `qc_audit_log_table`
+
+| Column       | Type      | Description                   |
+| ------------ | --------- | ----------------------------- |
+| trip\_id     | STRING    | Identifier for the trip       |
+| column\_name | STRING    | Column that was checked       |
+| passed       | BOOLEAN   | Whether this column passed QC |
+| fail\_reason | STRING    | If failed, reason why         |
+| checked\_at  | TIMESTAMP | Timestamp of QC check         |
 
 ---
 
 ## 🛠️ Setup Instructions
 
-### 🔁 1. Clone the Repo
+### 1️⃣ Clone the Repository
+
 ```bash
 git clone https://github.com/yourusername/kafka-streaming-pipeline.git
 cd kafka-streaming-pipeline
 ```
 
-### 🐳 2. Start Kafka + Postgres + Spark
+---
+
+### 2️⃣ Launch Services (Kafka, Zookeeper, Postgres, Spark)
+
 ```bash
 docker-compose up --build
 ```
 
-### 🗃️ 3. Create PostgreSQL Tables
+---
+
+### 3️⃣ Create PostgreSQL Tables
+
 ```bash
 psql -h localhost -U pst_docker -d kfk_sp_db -f db_schema.sql
 ```
 
-### 🚗 4. Run Kafka Producer
+---
+
+### 4️⃣ Run Kafka Producer (Simulates Telemetry Events)
+
 ```bash
 python kafka_producer.py
 ```
 
-### 🔥 5. Run Spark Kafka Consumer
+---
+
+### 5️⃣ Run Spark Streaming Consumer
+
 ```bash
 cd jobs
 spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0,org.postgresql:postgresql:42.7.5 consumer_grp.py
@@ -142,36 +214,48 @@ spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0,org.pos
 
 ## ✅ Features Completed
 
-- [x] Kafka + Spark + PostgreSQL integration
-- [x] Schema validation for incoming JSON
-- [x] Raw & corrupt record separation
-- [x] Column-wise QC logic in second layer (null checks, range validation)
-- [x] Dockerized environment
-- [ ] Streamlit Dashboard (coming soon)
-- [ ] FastAPI producer for REST-based mock data (future)
+* [x] Kafka + Spark + PostgreSQL integration
+* [x] Real-time JSON ingestion with schema validation
+* [x] Separation of valid vs corrupt records
+* [x] Column-level QC checks (nulls, thresholds, bounds)
+* [x] Clean/failed data routed to different PostgreSQL tables
+* [x] Cell-wise audit table for every QC decision
+* [x] Retry queue logic in producer for Kafka delivery failures
+* [x] Dockerized full pipeline for easy deployment
+* [ ] Streamlit dashboard for vehicle-level QC analytics (coming soon)
+* [ ] FastAPI-based producer endpoint for REST ingestion (planned)
 
 ---
 
-## 📈 Example Use Cases
+## 📈 Example Applications
 
-- IoT sensor pipelines  
-- Real-time vehicle monitoring  
-- Fraud detection pre-processing  
-- Data lake staging before warehouse  
+* Real-time IoT monitoring
+* Vehicle/Logistics telemetry analytics
+* Data pre-QC before lake ingestion
+* Fraud detection preprocessing
+* Auditable data pipelines with fine-grained QC
 
 ---
 
 ## 👨‍💻 Author
 
-Developed by [Your Name].  
-Want help integrating dashboards or alerts? Reach out or open a PR.
+Developed by \[Your Name]
+Looking to collaborate, extend, or visualize this pipeline? Open a PR or get in touch!
 
 ---
 
 ## 📄 License
 
-This project is licensed under the MIT License.
+MIT License
 
-'''
-spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0,org.postgresql:postgresql:42.7.5 --py-files con_grp_upd.py con_gr_upd.py > sc.log
-'''
+```
+
+---
+
+Let me know if you also want:
+- A matching `db_schema.sql` with these three QC tables
+- A Streamlit dashboard scaffold
+- A sample message or test script for `kafka_producer.py`
+
+Would you like those now?
+```

@@ -212,7 +212,7 @@ spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0,org.pos
 * [x] Retry queue logic in producer for Kafka delivery failures
 * [x] Dockerized full pipeline for easy deployment
 * [ ] Streamlit dashboard for vehicle-level QC analytics (coming soon)
-* [ ] FastAPI-based producer endpoint for REST ingestion (planned)
+
 
 ---
 
@@ -227,18 +227,3 @@ spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0,org.pos
 ---
 
 
-## 📄 License
-
-MIT License
-
-```
-
----
-
-Let me know if you also want:
-- A matching `db_schema.sql` with these three QC tables
-- A Streamlit dashboard scaffold
-- A sample message or test script for `kafka_producer.py`
-
-Would you like those now?
-```
